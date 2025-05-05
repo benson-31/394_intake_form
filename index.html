@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {text-align: left;}
+      input[readonly] {
+      background-color: #f0f0f0;
+      color: #555;
+      border: 1px solid #ccc;}
+      #preferences-container > div {
+        margin-bottom: 0.75em; /* or whatever you like */
+      }
+      </style>
+    <script>
+      // Initialize the counter for dynamically added fields.
+      let fieldCount = 1;
+
+      function updatePreferenceLabels() {
+        const rows = document.querySelectorAll('#preferences-container > div');
+        rows.forEach((row, i) => {
+          let span = row.querySelector('.pref-label');
+          if (!span) {
+            span = document.createElement('span');
+            span.className = 'pref-label';
+            row.insertBefore(span, row.firstChild);
+          }
+          span.textContent = `Preference ${i+1}: `;
+        });
+      }
+
+      /**
+       * Adds a new input field for a route preference.
+       */
+      function addPreferenceField() {
+        const container = document.getElementById('preferences-container');
+        // Create a container div for the new input field and remove button.
+        const newDiv = document.createElement('div');
+        newDiv.setAttribute('id', 'pref-' + fieldCount);
+
+        newDiv.innerHTML =
+            '<span class="pref-label"></span>' +
+            '<input type="text" ' +
+                'name="preference' + fieldCount + '" ' +
+                'placeholder="Enter route number" ' +
+                'inputmode="numeric" ' +
+                'oninput="this.value=this.value.replace(/\\D/g,\'\')" ' +
+            '/>' +
+            ' <button type="button" ' +
+                'class="remove-btn" ' +
+                'onclick="removePreferenceField(\'pref-' + fieldCount + '\')">' +
+              'Remove' +
+            '</button>';
+
+        container.appendChild(newDiv);
+        updatePreferenceLabels();
+        fieldCount++;
+      }
+
+      /**
+       * Removes an input field given its container div ID.
+       *
+       * @param {string} id The id of the container div to remove.
+       */
+      function removePreferenceField(id) {
+        const element = document.getElementById(id);
+        if (element) {
+          element.remove();
+        }
+        updatePreferenceLabels();
+      }
+
+      /**
+       * Handles form submission by calling the server-side function.
+       *
+       * @param {Event} event The submit event.
+       * @returns {boolean} false to prevent default form submission.
+       */
+      function handleSubmit(event) {
+        event.preventDefault(); // Prevent the default form submission behavior.
+        const errorDiv = document.getElementById('error-msg');
+        const form = document.getElementById('myForm');
+        const formData = new FormData(form);
+        // Convert FormData to an object.
+        const formObject = {};
+        formData.forEach((value, key) => {
+          formObject[key] = value;
+        });
+
+        const prefVals = Object.keys(formObject)
+          .filter(k => k.startsWith('preference'))
+          .map(k => formObject[k].trim())
+          .filter(v => v !== '');
+
+        if (new Set(prefVals).size < prefVals.length) {
+          // show error text instead of an alert
+          errorDiv.textContent = 'Please get rid of duplicate routes.';
+          errorDiv.style.display = 'block';
+          return false;
+        } else {
+          // clear any previous error
+          errorDiv.style.display = 'none';
+        }
+
+        const list = document.getElementById('preview-list');
+        list.innerHTML = '';  // clear old preview
+
+
+        // 1) grab all non-empty preference keys and sort them by their index
+        const prefKeys = Object.keys(formObject)
+          .filter(k => k.startsWith('preference') && formObject[k].trim() !== '')
+          .sort((a, b) => {
+            const ia = parseInt(a.slice('preference'.length), 10);
+            const ib = parseInt(b.slice('preference'.length), 10);
+            return ia - ib;
+          });
+
+        // 2) render them with a sequential label
+        prefKeys.forEach((key, idx) => {
+          const label = `Preference ${idx + 1}`;
+          const li    = document.createElement('li');
+          li.innerText = `${label}: Route ${formObject[key]}`;
+          list.appendChild(li);
+        });
+
+        document.getElementById('preview-panel').style.display = 'block';
+        form.querySelector('input[type="submit"]').style.display = 'none';
+
+        form.querySelectorAll('input[type="text"]').forEach(i => i.setAttribute('readonly','readonly'));
+        // DISABLE Add & Remove in preview‐mode
+        document.getElementById('add-pref-btn').disabled = true;
+        document.querySelectorAll('.remove-btn')
+                .forEach(btn => btn.disabled = true);
+
+        document.getElementById('confirm-btn').onclick = () => confirmSubmit(formObject);
+        document.getElementById('edit-btn').onclick    = () => editSubmission();
+        
+        return false;
+      }
+
+      function confirmSubmit(formObject) {
+        google.script
+          .run
+          .withSuccessHandler(response => {
+            document.getElementById('preview-panel').style.display = 'none';
+            document.getElementById('error-msg').style.display     = 'none';
+            document.getElementById('response').style.display      = 'none';
+            document.getElementById('myForm').style.display        = 'none';
+
+            const summaryDiv = document.getElementById('summary');
+            const name      = formObject.name || '(no name)';
+            const seniority = formObject.seniority || '(no seniority)';
+            const prefs = Object.keys(formObject)
+              .filter(k => k.startsWith('preference') && formObject[k] !== '')
+              .sort((a, b) =>
+                parseInt(a.slice('preference'.length), 10) -
+                parseInt(b.slice('preference'.length), 10)
+              ).map(k => formObject[k].trim());
+
+            summaryDiv.innerHTML =
+              `<h4>Thank you, ${name}!</h4>
+              <p>Your seniority number: ${seniority}</p>
+              <p>Your chosen routes:</p>
+              <ul>` +
+                prefs.map((route, idx) => `<li>Preference ${idx+1}: Route ${route}</li>`)
+                  .join('') +
+              `</ul>`;
+              summaryDiv.style.display = 'block';
+          })
+          .processForm(formObject);
+      }
+
+
+      function editSubmission() {
+        const form = document.getElementById('myForm');
+        document.getElementById('preview-panel').style.display = 'none';
+        document.getElementById('myForm')
+                .querySelector('input[type="submit"]')
+                .style.display = '';
+
+        form.querySelectorAll('input[type="text"]').forEach(i => i.removeAttribute('readonly'));
+        document.getElementById('add-pref-btn').disabled = false;
+        document.querySelectorAll('.remove-btn').forEach(btn => btn.disabled = false);
+        
+      } 
+      updatePreferenceLabels();
+
+    </script>
+  </head>
+  <body>
+    <h2>North America Central School Bus</h2>
+    <h3>Carol Stream: Driver Preferences Form</h3>
+
+    <form id="myForm" onsubmit="handleSubmit(event)">
+      <div>
+        Name: <input type="text", name='name'>
+      </div>
+      <div>
+        Seniority Number: <input type="text", name='seniority'>
+      </div><br>
+      <!-- Container for the dynamic preference fields -->
+      <div id="preferences-container">
+        <!-- Initial preference input field -->
+        <div id="pref-0">
+          <input type="text" name="preference0" inputmode="numeric" oninput="this.value = this.value.replace(/\\D/g, '')" placeholder="Enter route number" />
+          <button type="button" class="remove-btn" onclick="removePreferenceField('pref-0')">Remove</button>
+        </div>
+      </div>
+      <!-- Button to add a new preference field -->
+      <button type="button" id="add-pref-btn" onclick="addPreferenceField()">Add Preference</button>
+      <!-- Submit button -->
+      <input type="submit" value="Submit" />
+    </form>
+    <script>
+      updatePreferenceLabels();
+    </script>
+    <div id="summary" style="display:none; margin-top:20px; text-align:left;"></div>
+    <div id="error-msg" style="color: red; display: none; margin-top: 0.5em;"></div>
+      <!-- Review panel: hidden by default -->
+    <div id="preview-panel" style="display:none; margin-top:20px; text-align:left;">
+      <h4>Please review your choices:</h4>
+      <ul id="preview-list"></ul>
+      <button type="button" id="confirm-btn">Confirm</button>
+      <button type="button" id="edit-btn">Edit</button>
+    </div>
+    <div id="response" style="margin-top: 20px; font-weight: bold;"></div>
+  </body>
+</html>
