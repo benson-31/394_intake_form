@@ -1,0 +1,9 @@
+{
+  "name": "processForm",
+  "version": "1.0.0",
+  "dependencies": {
+    "@azure/identity": "^2.0.0",
+    "@microsoft/microsoft-graph-client": "^3.0.0",
+    "isomorphic-fetch": "^3.0.0"
+  }
+}
