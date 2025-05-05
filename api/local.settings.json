@@ -1,0 +1,8 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "EXCEL_FILE_ITEM_ID": "<your‑one‑drive‑item‑ID‑here>"
+  }
+}
