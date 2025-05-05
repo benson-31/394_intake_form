@@ -138,37 +138,41 @@
         return false;
       }
 
-      function confirmSubmit(formObject) {
-        google.script
-          .run
-          .withSuccessHandler(response => {
-            document.getElementById('preview-panel').style.display = 'none';
-            document.getElementById('error-msg').style.display     = 'none';
-            document.getElementById('response').style.display      = 'none';
-            document.getElementById('myForm').style.display        = 'none';
+      async function confirmSubmit(formObject) {
+  // POST to your Azure Function instead of google.script.run
+  const res = await fetch('/api/processForm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(formObject)
+  });
+  const message = await res.text();
 
-            const summaryDiv = document.getElementById('summary');
-            const name      = formObject.name || '(no name)';
-            const seniority = formObject.seniority || '(no seniority)';
-            const prefs = Object.keys(formObject)
-              .filter(k => k.startsWith('preference') && formObject[k] !== '')
-              .sort((a, b) =>
-                parseInt(a.slice('preference'.length), 10) -
-                parseInt(b.slice('preference'.length), 10)
-              ).map(k => formObject[k].trim());
+  // now do exactly what your successHandler used to do…
+  document.getElementById('preview-panel').style.display = 'none';
+  document.getElementById('error-msg').style.display     = 'none';
+  document.getElementById('response').style.display      = 'none';
+  document.getElementById('myForm').style.display        = 'none';
 
-            summaryDiv.innerHTML =
-              `<h4>Thank you, ${name}!</h4>
-              <p>Your seniority number: ${seniority}</p>
-              <p>Your chosen routes:</p>
-              <ul>` +
-                prefs.map((route, idx) => `<li>Preference ${idx+1}: Route ${route}</li>`)
-                  .join('') +
-              `</ul>`;
-              summaryDiv.style.display = 'block';
-          })
-          .processForm(formObject);
-      }
+  const summaryDiv = document.getElementById('summary');
+  const name      = formObject.name || '(no name)';
+  const seniority = formObject.seniority || '(no seniority)';
+  const prefs = Object.keys(formObject)
+    .filter(k => k.startsWith('preference') && formObject[k] !== '')
+    .sort((a, b) =>
+      parseInt(a.slice('preference'.length), 10) -
+      parseInt(b.slice('preference'.length), 10)
+    ).map(k => formObject[k].trim());
+
+  summaryDiv.innerHTML =
+    `<h4>Thank you, ${name}!</h4>
+     <p>Your seniority number: ${seniority}</p>
+     <p>${message}</p>
+     <p>Your chosen routes:</p>
+     <ul>` +
+       prefs.map((route, idx) => `<li>Preference ${idx+1}: Route ${route}</li>`).join('') +
+    `</ul>`;
+  summaryDiv.style.display = 'block';
+}
 
 
       function editSubmission() {
